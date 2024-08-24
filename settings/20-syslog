@@ -1,0 +1,12 @@
+/var/log/*.log {
+    daily
+    rotate 7
+    missingok
+    notifempty
+    compress
+    copytruncate
+    delaycompress
+    dateext
+    create 644 root root
+    dateformat -%Y-%m-%d
+}

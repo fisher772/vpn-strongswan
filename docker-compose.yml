@@ -1,0 +1,41 @@
+---
+
+services:
+  vpn-strongswan:
+    image: fisher772/vpn-strongswan
+    container_name: vpn-strongswan
+    hostname: vpn-strongswan
+    privileged: true
+    network_mode: host
+    restart: always
+    volumes:
+      - ipsec.d:/etc/ipsec.d
+      - strongswan.d:/etc/strongswan.d
+      - xl2tpd:/etc/xl2tpd
+      - ppp:/etc/ppp
+      - logs:/var/log
+    environment:
+      - TZ=${EKB}
+      - LE_CERT_STATUS=${CERT_STATUS}
+      - IPTABLES=${STATUS}
+      - IPTABLES_INTERFACE=${NET}
+      - O_IPTABLES_INTERFACE=${O_NET}
+      - IPTABLES_ENDPOINTS=${IPTAB_ROUTE_RANGE}
+      - VPN_DOMAIN=${FQDN}
+      - VPN_ROUTE_RANGE=${VPN_ROUTE_RANGE}
+      - IPSEC_RDNS=${IPSEC_RDNS}
+      - XL2TPD_IPRANGE=${XL2TPD_IPRANGE}
+      - XL2TPD_IPLOCAL=${XL2TPD_IPLOCAL}
+      - XL2TPD_DNS1=${XL2TPD_DNS1}
+      - XL2TPD_DNS2=1.1.1.1
+      - VPN_CERT_O="VPN FISHERDEVOPS"
+      - VPN_CERT_CN="VPN FISHERDEVOPS CA"
+      - VPN_CERT_C=COM
+      #- SNAT_IP=${SNAT}
+
+volumes:
+  ipsec.d:
+  strongswan.d:
+  xl2tpd:
+  ppp:
+  logs:

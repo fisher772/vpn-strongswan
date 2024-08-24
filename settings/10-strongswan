@@ -1,0 +1,12 @@
+/var/log/vpn/*.log {
+    daily
+    rotate 7
+    missingok
+    notifempty
+    compress
+    copytruncate
+    delaycompress
+    dateext
+    create 644 ipsec ipsec
+    dateformat -%Y-%m-%d
+}
