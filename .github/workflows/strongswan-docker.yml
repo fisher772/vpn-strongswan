@@ -1,0 +1,237 @@
+name: strongswan-docker
+
+on:
+  workflow_dispatch:
+  #release:
+    #types: [published]
+  #push:
+    #branches:
+      #- 'pkgs/container/vpn-strongswan/**'
+      #- 'main/releases/tag/**'
+    #tags: [v*.*.*]
+
+env:
+  REGISTRY_A: ghcr.io
+  REGISTRY_B: docker.io
+  CONTAINER_NAME: vpn-strongswan
+  IMAGE_NAME: ${{ github.repository }}
+  TG_URL: https://api.telegram.org/bot${{ secrets.TG_TOKEN }}/sendMessage -d chat_id=${{ secrets.TG_NOTI }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.1.7
+
+      - name: Setup Docker buildx
+        uses: docker/setup-buildx-action@v3.6.1
+
+      - name: Check for tag
+        id: check_tag
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "has_tag=true" >> $GITHUB_OUTPUT
+            GEN_TAG=$(echo "${{ github.ref }}" | cut -b 11-21)
+            echo "GEN_TAG=$GEN_TAG" >> $GITHUB_ENV
+          else
+            echo "has_tag=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Notify start
+        id: noti_start
+        run: |
+          echo "Sending notification..."
+          curl -s -X POST ${{ env.TG_URL }} -d text="CI-Build. Workflow for ${{ env.IMAGE_NAME }} ${{ env.GEN_TAG }} started!"
+        
+      - name: Log into registry ${{ env.REGISTRY_A }}
+        uses: docker/login-action@v3.3.0
+        with:
+          registry: ${{ env.REGISTRY_A }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log into registry ${{ env.REGISTRY_B }}
+        uses: docker/login-action@v3.3.0
+        with:
+          registry: ${{ env.REGISTRY_B }}
+          username: ${{ secrets.DOCKER_USER }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Extract Docker metadata ${{ env.REGISTRY_A }}/${{ env.IMAGE_NAME }}
+        id: meta_A
+        uses: docker/metadata-action@v5.5.1
+        with:
+          images: ${{ env.REGISTRY_A }}/${{ env.IMAGE_NAME }}
+      
+      - name: Extract Docker metadata ${{ env.REGISTRY_B }}/${{ env.IMAGE_NAME }}
+        id: meta_B
+        uses: docker/metadata-action@v5.5.1
+        with:
+          images: ${{ env.REGISTRY_B }}/${{ env.IMAGE_NAME }}
+
+      - name: Build Docker image
+        id: build_image
+        uses: docker/build-push-action@v6.7.0
+        with:
+          context: .
+          push: false
+          load: true
+          tags: |
+            ${{ steps.meta_A.outputs.tags }}
+            ${{ steps.meta_B.outputs.tags }}
+            ${{ env.REGISTRY_A }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY_B }}/${{ env.IMAGE_NAME }}:latest
+          labels: |
+            ${{ steps.meta_A.outputs.labels }}
+            ${{ steps.meta_B.outputs.labels }}
+
+      - name: Test Docker image. Сontainer Up
+        id: test_image
+        run: |
+          exec $(which docker) run -d --name ${{ env.CONTAINER_NAME }} ${{ steps.meta_A.outputs.tags }}
+
+      - name: Test Docker image. Get container status for CI
+        id: get_status
+        run: |
+          CONTAINER_STATUS=$(docker inspect --format='{{json .State.Running}}' ${{ env.CONTAINER_NAME }})
+          echo "con_status=$CONTAINER_STATUS" >> $GITHUB_OUTPUT
+
+      - name: Notify test CI success
+        id: noti_ci_test
+        if: steps.get_status.outputs.con_status == 'true'
+        run: |
+          echo "Sending notification..."
+          curl -s -X POST ${{ env.TG_URL }} -d text="CI-Test. Test for ${{ env.IMAGE_NAME }} ${{ env.GEN_TAG }} completed successfully!"
+
+      - name: Push Docker image
+        id: push_image
+        if:  steps.get_status.outputs.con_status == 'true'
+        uses: docker/build-push-action@v6.7.0
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.meta_A.outputs.tags }}
+            ${{ steps.meta_B.outputs.tags }}
+            ${{ env.REGISTRY_A }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY_B }}/${{ env.IMAGE_NAME }}:latest
+          labels: |
+            ${{ steps.meta_A.outputs.labels }}
+            ${{ steps.meta_B.outputs.labels }}
+
+      - name: Notify cancelled
+        id: noti_end
+        if: steps.get_status.outputs.con_status == 'true'
+        run: |
+          echo "Sending notification..."
+          curl -s -X POST ${{ env.TG_URL }} -d text="CI-Build. Workflow for ${{ env.IMAGE_NAME }} ${{ env.GEN_TAG }} completed successfully!"
+
+  deploy:
+    if: ${{ vars.DEPLOY_STATUS  == 'true' }}
+    runs-on: self-hosted
+    needs: build
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository for deploy
+        uses: actions/checkout@v4.1.7
+  
+      - name: Check tag for deploy
+        id: check_tag
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "has_tag=true" >> $GITHUB_OUTPUT
+            GEN_TAG=$(echo "${{ github.ref }}" | cut -b 11-21)
+            echo "GEN_TAG=$GEN_TAG" >> $GITHUB_ENV
+          else
+            echo "has_tag=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Notify start
+        id: noti_start
+        run: |
+          echo "Sending notification..."
+          curl -s -X POST ${{ env.TG_URL }} -d text="CD-Deploy. Workflow for ${{ env.IMAGE_NAME }} ${{ env.GEN_TAG }} started!"
+        
+      - name: Log into registry ${{ env.REGISTRY_A }}
+        uses: docker/login-action@v3.3.0
+        with:
+          registry: ${{ env.REGISTRY_A }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log into registry ${{ env.REGISTRY_B }}
+        uses: docker/login-action@v3.3.0
+        with:
+          registry: ${{ env.REGISTRY_B }}
+          username: ${{ secrets.DOCKER_USER }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Generate .env for container
+        id: gen_env
+        run: |
+         cat << EOF > .env
+         IMAGE=${{ env.IMAGE_NAME }}:${{ env.GEN_TAG }}
+         ${{ vars.STRONGSWAN_ENV_ARRAY }}
+         EOF
+
+      - name: Deploy or Rebuild docker imgae on NODE
+        id: deploy_rebuild
+        run: |
+          docker compose -f workflow-compose.yml up -d
+
+      - name: Test Docker image. Get container status
+        id: get_status_cd
+        run: |
+          CONTAINER_STATUS=$(docker inspect --format='{{json .State.Running}}' ${{ env.CONTAINER_NAME }})
+          echo "con_status=$CONTAINER_STATUS" >> $GITHUB_OUTPUT
+
+  test_cd:
+    if: ${{ vars.DEPLOY_STATUS  == 'true' }}
+    runs-on: [self-hosted, "${{ vars.ALIAS_HOST }}"]
+    needs: deploy
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Test Docker image. Get container status for CD
+        id: get_status_cd
+        run: |
+          CONTAINER_STATUS=$(docker inspect --format='{{json .State.Running}}' ${{ env.CONTAINER_NAME }})
+          echo "con_status=$CONTAINER_STATUS" >> $GITHUB_OUTPUT
+
+      - name: Notify test CD success
+        id: noti_cd_test
+        run: |
+          echo "Sending notification..."
+          curl -s -X POST ${{ env.TG_URL }} -d text="CD-Test. Test for ${{ env.IMAGE_NAME }} ${{ env.GEN_TAG }} completed successfully!"
+
+  cleaner:
+    if: ${{ vars.DEPLOY_STATUS  == 'true' }}
+    runs-on: [self-hosted, "${{ vars.ALIAS_HOST }}"]
+    needs: [deploy, test_cd]
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Notify cancelled
+        id: noti_end
+        run: |
+          echo "Sending notification..."
+          curl -s -X POST ${{ env.TG_URL }} -d text="CD-Deploy. Workflow for ${{ env.IMAGE_NAME }} ${{ env.GEN_TAG }} completed successfully!"
+
+      - name: RM workspace on self-hosted
+        run: rm -rf "${{ github.workspace }}"
