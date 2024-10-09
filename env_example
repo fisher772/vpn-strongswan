@@ -1,0 +1,38 @@
+# This variable is responsible for the range of subnet addresses that will be assigned to IKEv2 protocol clients
+# In variable, the escape character "/" is used to correctly specify the subnet mask in the system variable
+VPN_ROUTE_RANGE="10.2.1.0\/24"
+
+
+VPN_DOMAIN="YOUR_HOST_ADDRESS"
+
+# This boolean variable is responsible for generating self-signed certificates
+CERT_STATUS=true
+
+# This variable adds IKEv2 and L2TP protocol subnet routes to the IPtables routing rules
+# In variable, the escape character "/" is used to correctly specify the subnet mask in the system variable
+IPTAB_ROUTE_RANGE="10.1.1.0/24,10.2.1.0/24"
+
+EKB=Asia/Yekaterinburg
+
+# This boolean variable is responsible for applying routing rules
+STATUS=true
+
+# These variables transmit the names of network adapters with access to the external network. 
+# Check on your host with the command: <ip a>
+NET=eth0
+O_NET=eth0
+
+# An alternative to the MASQUERADE rule. 
+# This variable is responsible for transmitting the external host address into which client traffic will be wrapped and provided to the external network. 
+# If empty, MASQUERADE is applied
+SNAT="0.0.0.0"
+
+# This variable transmits the value in the IPV4 format of the DNS service address in the IPsec configuration file for the IKEv2 protocol. 
+# Only one address is allowed
+IPSEC_RDNS="1.1.1.1"
+
+
+# These variables are for the XL2TPD configuration of the L2TP protocol. Subnet range, gateway, IPv4 dns service addresses
+XL2TPD_IPRANGE=10.1.1.2-10.1.1.254
+XL2TPD_IPLOCAL=10.1.1.1
+XL2TPD_DNS1=1.1.1.1
