@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
   #release:
     #types: [published]
-  #push:
+  push:
     #branches:
       #- 'pkgs/container/vpn-strongswan/**'
       #- 'main/releases/tag/**'
-    #tags: [v*.*.*]
+    tags: [v*.*.*]
 
 env:
   REGISTRY_A: ghcr.io
